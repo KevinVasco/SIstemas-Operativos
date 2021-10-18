@@ -6,13 +6,15 @@
 #include <sys/ipc.h>
 #include <sys/msg.h>
 
+#include <pthread.h>
+
 #define SERVER_KEY_PATHNAME "./server_key_path.txt"
 #define PROJECT_ID 'M'
 #define SIZE_COMMAND 256
 
 typedef struct message_text {
     int qid;
-    char buf [SIZE_COMMAND]; // I touched this, the value was 200
+    char buf [SIZE_COMMAND];
 }message_text;
 
 typedef struct message {
@@ -20,11 +22,25 @@ typedef struct message {
     message_text message_text;
 }message;
 
-int main (int argc, char **argv)
-{
+key_t server_queue_key;
+int server_qid, my_qid;
+
+void *server_listener_closing (void *pargs) {
+    message server_message;
+    // Se if it's necessary while
+    if (msgrcv (my_qid, &server_message, sizeof (message), 6, 0) == -1) {
+        perror ("client: msgrcv\n");
+        printf ("client: server tried to close\n");
+        printf ("client: closing client\n");
+        exit (EXIT_FAILURE);
+    }
+    printf ("server: closing\n");
+    printf ("client: closing\n");
+    exit (EXIT_SUCCESS);
+}
+
+int main (int argc, char **argv) {
     /*  Communicaction shit */
-    key_t server_queue_key;
-    int server_qid, my_qid;
     message client_message, server_message;
 
     // create my client queue for receiving messages from server
@@ -44,18 +60,17 @@ int main (int argc, char **argv)
     }
     /*  End of communication shit   */
 
-    char no[2]              = "n";
-    char yes[2]             = "y";
+    //char no[2]              = "n"; // Later view how to implement this
+    //char yes[2]             = "y";
     char sep[2]             = " ";
     char sub[4]             = "sub";
     char ask[4]             = "ask";
     char list[5]            = "list";
-    char unsub[6]           = "unsub";
     char close[6]           = "exit";
-    //char access_denied[14]   = "denied access";
-    char access_denied[7]   = "denied access";
+    char unsub[6]           = "unsub";
+    char access_denied[7]   = "denied";
     char *token_command;
-    char *token_confirmation;
+    //char *token_confirmation; Unused
 
     client_message.message_type = 1;
     client_message.message_text.qid = my_qid;
@@ -88,23 +103,26 @@ int main (int argc, char **argv)
         exit (EXIT_SUCCESS);
     }
 
+    pthread_t threadID_server_closed;
+    pthread_create (&threadID_server_closed, NULL, server_listener_closing, NULL);
+
+
     printf ("client: please type in a command: ");
 
     while (fgets (client_message.message_text.buf, SIZE_COMMAND, stdin)) {
-
+        /*  Formating console entry */
         int length = strlen (client_message.message_text.buf);
         if (client_message.message_text.buf [length - 1] == '\n') client_message.message_text.buf [length - 1] = '\0';
 
-        /*  Verificaction of commands   */
+        /*  Tokenization of entry   */
         token_command  = strtok (client_message.message_text.buf, sep);
 
-        if (strcmp(token_command, sub) == 0)  client_message.message_type = 2;
+        // Condicion de carrera
+        if (strcmp(token_command, sub) == 0 || strcmp(token_command, unsub))  client_message.message_type = 2;
 
         else if (strcmp(token_command, ask) == 0)    client_message.message_type = 3;
 
         else if (strcmp(token_command, list) == 0)   client_message.message_type = 4;
-
-        else if (strcmp(token_command, unsub) == 0)  client_message.message_type = 5;
 
         else if (strcmp(token_command, close) == 0) {
             break;
