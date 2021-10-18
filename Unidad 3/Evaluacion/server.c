@@ -12,7 +12,7 @@
 #define PROJECT_ID 'M'
 #define QUEUE_PERMISSIONS 0660
 #define SIZE_COMMAND 256
-//#define SIZE_REGISTERS 128                              //  Maximum amount of clients able to conenct to the server at any given point
+#define SIZE_REGISTERS 2                              //  Maximum amount of clients able to conenct to the server at any given point
 
 typedef struct message_text {
     int qid;
@@ -26,40 +26,45 @@ typedef struct message {
 
 key_t msg_queue_key;
 int qid;
+int register_clientes[SIZE_REGISTERS];
+int number_clients;
 
 //  Organize
 void *client_first_connection (void *parg) {
 
+    number_clients = 0;
     message message_client, message_server;
 
     while (1) {
-
-        // read an incoming message
+        /*  Read incoming message thru channel 1    */
         if (msgrcv (qid, &message_client, sizeof (message), 1, 0) == -1) {
             perror ("msgrcv");
-            exit (1);
+            exit (EXIT_FAILURE);
         }
 
-        printf ("Server: %s\n", message_client.message_text.buf);
-
-        char buf[20];
-        sprintf(buf, "%s", "Access allowed");
-        sprintf(message_server.message_text.buf, "%s", "Access allowed");
-        //strcat(message_server.message_text.buf, "Access allowed");
+        printf ("server: %s\n", message_client.message_text.buf);
 
         int client_qid = message_client.message_text.qid;
-        message_client.message_text.qid = qid;
-
         message_server.message_text.qid = qid;
         message_server.message_type = 1;
+        
+        if (number_clients == SIZE_REGISTERS - 1) {
+            sprintf(message_server.message_text.buf, "%s", "denied access");
+        }
+        else {
+            sprintf(message_server.message_text.buf, "%s", "granted access");
 
-        // send reply message to client
+            /*  Adding new client to registers  */
+            printf ("server: added new client.\n");
+            register_clientes [number_clients] = message_client.message_text.qid;
+            number_clients ++;
+        }
+
+        /*  Send status to client */
         if (msgsnd (client_qid, &message_server, sizeof (message), 0) == -1) {  
             perror ("msgget");
             exit (1);
         }
-
-        printf ("Server: response sent to client.\n");
     }
 }
 
@@ -76,7 +81,7 @@ void *client_listener_sub (void *parg) {
 
         int client_qid = message_client.message_text.qid;
 
-        printf ("Server: message received from client %d.\n", client_qid);
+        printf ("server: message received from client %d.\n", client_qid);
 
         // process message
         int length = strlen (message_client.message_text.buf);
@@ -93,13 +98,18 @@ void *client_listener_sub (void *parg) {
             exit (1);
         }
 
-        printf ("Server: response sent to client %d.\n", client_qid);
+        printf ("server: response sent to client %d.\n", client_qid);
     }
 }
 
 int main (int argc, char **argv)
 {
     //Create the server_key_path.txt so that i don't have to give it for him
+    FILE *server_key_path_create = fopen(SERVER_KEY_PATHNAME,"w+");
+    if (server_key_path_create == NULL){
+        perror("open file fails: ");
+        return(EXIT_FAILURE);
+    }
 
     pthread_t threadID_connection;
     pthread_t threadID_client_listener_sub;
@@ -122,7 +132,6 @@ int main (int argc, char **argv)
     //pthread_create(&threadID_client_listener_ask, NULL, client_listener_ask, &register_clients);
     //pthread_create(&threadID_client_listener_list, NULL, client_listener_list, &register_clients);
     //pthread_create(&threadID_client_listener_unsub, NULL, client_listener_unsub, &register_clients);
-
 
     printf ("Server: Hello, World!\n");
 
