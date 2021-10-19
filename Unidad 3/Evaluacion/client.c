@@ -124,11 +124,12 @@ int main (int argc, char **argv) {
         if (client_message.message_text.buf [length - 1] == '\n') client_message.message_text.buf [length - 1] = '\0';
 
         /*  Tokenization of entry   */
-        token_command  = strtok (client_message.message_text.buf, sep);
+        char auxBuffer[SIZE_COMMAND];
+        strcpy(auxBuffer, client_message.message_text.buf);
+        token_command  = strtok (auxBuffer, sep);
 
         // Condicion de carrera?
         
-        printf("%d\n", strcmp (token_command, sub));
         if (strcmp (token_command, sub) == 0) client_message.message_type = 2;
 
         else if (strcmp (token_command, unsub) == 0) client_message.message_type = 2;
@@ -159,6 +160,8 @@ int main (int argc, char **argv) {
             continue;
         }
         /*  End of my shit    */
+
+        printf("1: %s\n", client_message.message_text.buf);
 
         if (msgsnd (server_qid, &client_message, sizeof (message), 0) == -1) {
             perror ("client: msgsnd");

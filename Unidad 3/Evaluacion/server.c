@@ -76,32 +76,40 @@ void *client_listener_sub_unsub (void *parg) {
 
     message message_client, message_server;
     char *token;
-    char sep[2] = " ";
-    char sub[4] = "sub";
-    char unsub[6] = "unsub";
+    char *sep = " ";
+    char *sub = "sub";
+    char *unsub = "unsub";
 
     while (1) {
         if (msgrcv (qid, &message_client, sizeof (message), 2, 0) == -1) {
             perror ("msgrcv");
             exit (EXIT_FAILURE);
         }
-
         int client_qid = message_client.message_text.qid;
 
         // process message
+        printf("s: %s\n", message_client.message_text.buf);
         token = strtok(message_client.message_text.buf, sep);
+        printf("token 1: %s\n", token);
         if (strcmp (token, sub) == 0) {
             token = strtok(NULL, sep);
             printf("token 2: %s\n", token);
             if (number_events == 0) sprintf(message_server.message_text.buf, "%s", "event not found");
-            for (int i = 0; i < number_events; i++) {;
+            for (int i = 0; i < number_events; i++) {
+                printf("here 1\n");
+                printf("token: %s\n", token); // Token is null?
+                printf("compare %s - %s = %d\n", token, events[i].name_event, strcmp (token, events[i].name_event));
                 if (strcmp (token, events[i].name_event) == 0) {
+                    printf("here 2\n");
                     if (events[i].interested == events[i].max_capacity) {
                         sprintf(message_server.message_text.buf, "%s", "event is full");
                         break;
                     }
+                    printf("here 1\n");
                     events[i].attendents[events[i].interested] = client_qid;
+                    printf("here 2\n");
                     events[i].interested ++;
+                    printf("here 3\n");
                     sprintf(message_server.message_text.buf, "%s", "you are now subbed");
                 }
                 else {
