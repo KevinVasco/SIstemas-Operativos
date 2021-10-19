@@ -10,8 +10,8 @@
 
 #define SERVER_KEY_PATHNAME "./server_key_path.txt"
 #define PROJECT_ID 'M'
-#define QUEUE_PERMISSIONS 0660
-#define SIZE_COMMAND 256
+#define QUEUE_PERMISSIONS 0660                          //  Read and write
+#define SIZE_COMMAND 256                                //  Maximum amount chars for command
 #define SIZE_REGISTERS 128                              //  Maximum amount of clients able to conenct to the server at any given point
 #define SIZE_TOTAL_EVENTS 128                           //  Maximum amount of events
 
@@ -88,28 +88,18 @@ void *client_listener_sub_unsub (void *parg) {
         int client_qid = message_client.message_text.qid;
 
         // process message
-        printf("s: %s\n", message_client.message_text.buf);
         token = strtok(message_client.message_text.buf, sep);
-        printf("token 1: %s\n", token);
         if (strcmp (token, sub) == 0) {
             token = strtok(NULL, sep);
-            printf("token 2: %s\n", token);
             if (number_events == 0) sprintf(message_server.message_text.buf, "%s", "event not found");
             for (int i = 0; i < number_events; i++) {
-                printf("here 1\n");
-                printf("token: %s\n", token); // Token is null?
-                printf("compare %s - %s = %d\n", token, events[i].name_event, strcmp (token, events[i].name_event));
                 if (strcmp (token, events[i].name_event) == 0) {
-                    printf("here 2\n");
                     if (events[i].interested == events[i].max_capacity) {
                         sprintf(message_server.message_text.buf, "%s", "event is full");
                         break;
                     }
-                    printf("here 1\n");
                     events[i].attendents[events[i].interested] = client_qid;
-                    printf("here 2\n");
                     events[i].interested ++;
-                    printf("here 3\n");
                     sprintf(message_server.message_text.buf, "%s", "you are now subbed");
                 }
                 else {
@@ -119,12 +109,9 @@ void *client_listener_sub_unsub (void *parg) {
         }
 
         else if (strcmp (token, unsub) == 0) {
-            printf("strcmp unsub\n");
             token = strtok(NULL, sep);
-            printf("token: %s\n", token);
             int pos = -1;
             for (int i = 0; i < number_events; i++) {
-                printf("strcmp unsub event: %d\n", strcmp (token, events[i].name_event));
                 if (strcmp (token, events[i].name_event) == 0) {
                     pos = i;
                 } else {
@@ -132,7 +119,7 @@ void *client_listener_sub_unsub (void *parg) {
                 }
                 for (int j = pos; j < events[i].interested; j++) {
                     events[i].attendents[j] = events[i].attendents[j + 1];
-                    printf("pipol: %d\n", events[i].attendents[j]);
+                    sprintf(message_server.message_text.buf, "%s", "you are now unsubbed");
                 }
                 events[i].interested --;
             }
@@ -144,13 +131,35 @@ void *client_listener_sub_unsub (void *parg) {
         message_server.message_text.qid = qid;
         message_server.message_type = 1;
 
-        // send reply message to client
+        /*  send reply message to client    */
         if (msgsnd (client_qid, &message_server, sizeof (message), 0) == -1) {  
             perror ("msgget");
             exit (1);
         }
 
         printf ("server: response sent to client %d.\n", client_qid);
+    }
+}
+
+void *client_listener_ask (void *pargs) {
+    message message_client, message_server;
+    while(1) {
+        if (msgrcv (qid, &message_client, sizeof (message), 3, 0) == -1) {
+            perror ("msgrcv");
+            exit (EXIT_FAILURE);
+        }
+        int client_qid = message_client.message_text.qid;
+
+
+        for (int i = 0; i < number_events; i++) {
+            if (events[i].interested < events[i].max_capacity) {
+                //  wtf do i do
+            }
+        }
+        if (msgsnd (client_qid, &message_server, sizeof (message), 0) == -1) {  
+            perror ("msgget");
+            exit (1);
+        }
     }
 }
 
@@ -189,7 +198,7 @@ int main (int argc, char **argv) {
     number_events = 0;
     events = malloc(sizeof(event) * SIZE_TOTAL_EVENTS);
 
-    printf ("Server: Hello, World!\n");
+    printf ("server: hello, world\n");
 
     char *token;
     char *sep     = " ";
@@ -215,13 +224,7 @@ int main (int argc, char **argv) {
             events[number_events].attendents = malloc (sizeof(int) * events[number_events].max_capacity);
             strcpy (events[number_events].name_event, token);
             number_events ++;
-
-            for (int i = 0; i < number_events; i++) {
-                for (int j = 0; j < events[i].interested; j++) {
-                    printf("name: %s; client: %d\n", events[i].name_event, events[i].attendents[j]);
-                }
-            }
-            printf("--------\n");
+            printf("server: event added\n");
         }
 
         /*  Remove Command  */
@@ -231,6 +234,13 @@ int main (int argc, char **argv) {
             token = strtok (NULL, sep);
             for (int i = 0; i < number_events; i++) {
                 if (strcmp (token, events[i].name_event) == 0) {
+                    server_message.message_type = 4;
+                    sprintf(server_message.message_text.buf, "%s",events[i].name_event);
+                    for (int j = 0; j < events[i].interested; j++) {
+                        if (msgsnd (events[i].attendents[j], &server_message, sizeof (message), 0) == -1) {
+                            perror ("msgget");
+                        }
+                    }
                     free(events[i].attendents);
                     pos = i;
                     break;
@@ -247,9 +257,12 @@ int main (int argc, char **argv) {
 
         /*  Trigger Command */
         if (strcmp (token, trigger) == 0) {
+            printf("here 1\n");
             token = strtok (NULL, sep);
+            // Verify if token is null -> no event_name passed
             for (int i = 0; i < number_events; i++) {
                 if (strcmp (token, events[i].name_event) == 0) {
+                    printf("here 2\n");
                     server_message.message_type = 3;
                     server_message.message_text.qid = qid;
                     for (int j = 0; j < events[i].interested; j++) {
@@ -257,6 +270,7 @@ int main (int argc, char **argv) {
                         if (msgsnd (events[i].attendents[j], &server_message, sizeof (message), 0) == -1) {
                             perror ("msgget");
                         }
+                        printf("server: response sent to client %d\n", events[i].attendents[j]);
                     }
                     break;
                 }

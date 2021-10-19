@@ -37,6 +37,18 @@ void *server_listener_closing (void *pargs) {
     exit (EXIT_SUCCESS);
 }
 
+void *server_listener_remove_event (void *pargs) {
+    message server_message;
+    while (1) {
+        if (msgrcv (my_qid, &server_message, sizeof (message), 4, 0) == -1) {
+        perror ("client: msgrcv\n");
+        exit (EXIT_FAILURE);
+        }
+        printf("server: %s", server_message.message_text.buf);
+        printf(" has been removed\n");
+    }
+}
+
 void *server_listener_triggers (void *pargs) {
 
     message server_message;
@@ -53,8 +65,7 @@ void *server_listener_triggers (void *pargs) {
 int main (int argc, char **argv) {
 
     message client_message, server_message;
-
-    // create my client queue for receiving messages from server
+    /*  Create medium for communication */
     if ((my_qid = msgget (IPC_PRIVATE, 0660)) == -1) {
         perror ("msgget: my_qid");
         exit (EXIT_FAILURE);
@@ -89,7 +100,7 @@ int main (int argc, char **argv) {
 
     char buf[5];
     char buf1[12];
-    sprintf (buf1, "%s", "Client ");
+    sprintf (buf1, "%s", "client ");
     sprintf (buf, "%d", my_qid);
     strcat  (buf1, buf);
     strcat  (buf1, " is establishing connection");
@@ -113,10 +124,13 @@ int main (int argc, char **argv) {
     }
 
     pthread_t threadID_server_closed;
+    pthread_t threadID_server_trigger;
+    pthread_t threadID_server_remove_event;
     pthread_create (&threadID_server_closed, NULL, server_listener_closing, NULL);
+    pthread_create (&threadID_server_trigger, NULL, server_listener_triggers, NULL);
+    pthread_create (&threadID_server_remove_event, NULL, server_listener_remove_event, NULL);
 
-
-    printf ("client: please type in a command: ");
+    printf ("client: ");
 
     while (fgets (client_message.message_text.buf, SIZE_COMMAND, stdin)) {
         /*  Formating console entry */
@@ -156,12 +170,9 @@ int main (int argc, char **argv) {
 
         else {
             printf("server: invalid command\n");
-            printf ("client: please type in a command: ");
+            printf ("client: ");
             continue;
         }
-        /*  End of my shit    */
-
-        printf("1: %s\n", client_message.message_text.buf);
 
         if (msgsnd (server_qid, &client_message, sizeof (message), 0) == -1) {
             perror ("client: msgsnd");
@@ -175,7 +186,7 @@ int main (int argc, char **argv) {
 
         printf ("server: %s\n\n", server_message.message_text.buf);  
 
-        printf ("client: please type a command: ");
+        printf ("client: ");
     }
 
     if (msgctl (my_qid, IPC_RMID, NULL) == -1) {
