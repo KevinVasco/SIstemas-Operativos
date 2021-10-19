@@ -76,8 +76,8 @@ int main (int argc, char **argv) {
     char sub[4]             = "sub";
     char ask[4]             = "ask";
     char list[5]            = "list";
-    char close[6]           = "exit";
     char unsub[6]           = "unsub";
+    char cerrar[6]          = "exit";
     char access_denied[7]   = "denied";
     char *token_command;
 
@@ -128,8 +128,11 @@ int main (int argc, char **argv) {
 
         // Condicion de carrera
         printf("token: %s\n", token_command);
-        printf("token value no n: %d\n", strncmp(token_command, close, 4));
-        printf("token value yes n: %d\n", strcmp(token_command, close));
+        for (int i = 0; i < strlen(token_command); i++) printf("%d ", token_command[i]);
+        printf("\n");
+        for (int i = 0; i < strlen(cerrar); i++) printf("%d ", cerrar[i]);
+        //printf("token value no n: %d\n", strncmp(token_command, cerrar, 4));
+        //printf("token value yes n: %d\n", strcmp(token_command, cerrar));
 
         if (strncmp(token_command, sub, 3) == 0) client_message.message_type = 2;
 
@@ -139,7 +142,7 @@ int main (int argc, char **argv) {
 
         if (strncmp(token_command, list, 4) == 0)   client_message.message_type = 4;
 
-        if (strncmp(token_command, close, 4) == 0) {
+        if (strncmp(token_command, cerrar, 4) == 0) {
             exit (EXIT_SUCCESS);
             break;
             
