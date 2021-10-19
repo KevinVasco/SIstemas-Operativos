@@ -28,7 +28,7 @@ typedef struct message {
 typedef struct event {
     char name_event[64];                                //  64 is maximum amount of chars for a name_event
     int interested;
-    int *attendents;                                 //  64 maximum amount of attendents. It could be more but heap is a bitch
+    int *attendents;
     int max_capacity;
 }event;
 
@@ -88,8 +88,6 @@ void *client_listener_sub_unsub (void *parg) {
 
         int client_qid = message_client.message_text.qid;
 
-        //printf ("server: message received from client %d.\n", client_qid);
-
         // process message
         token = strtok(message_client.message_text.buf, sep);
         if (strcmp (token, sub) == 0) {
@@ -98,6 +96,10 @@ void *client_listener_sub_unsub (void *parg) {
             if (number_events == 0) sprintf(message_server.message_text.buf, "%s", "event not found");
             for (int i = 0; i < number_events; i++) {;
                 if (strcmp (token, events[i].name_event) == 0) {
+                    if (events[i].interested == events[i].max_capacity) {
+                        sprintf(message_server.message_text.buf, "%s", "event is full");
+                        break;
+                    }
                     events[i].attendents[events[i].interested] = client_qid;
                     events[i].interested ++;
                     sprintf(message_server.message_text.buf, "%s", "you are now subbed");
@@ -133,7 +135,6 @@ void *client_listener_sub_unsub (void *parg) {
 
         message_server.message_text.qid = qid;
         message_server.message_type = 1;
-        //printf("El 1\n");
 
         // send reply message to client
         if (msgsnd (client_qid, &message_server, sizeof (message), 0) == -1) {  

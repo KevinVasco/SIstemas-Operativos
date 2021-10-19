@@ -127,13 +127,19 @@ int main (int argc, char **argv) {
         token_command  = strtok (client_message.message_text.buf, sep);
 
         // Condicion de carrera
-        if (strcmp(token_command, sub) == 0 || strcmp(token_command, unsub) == 0)  client_message.message_type = 2;
+        printf("token: %s\n", token_command);
+        printf("token value no n: %d\n", strncmp(token_command, close, 4));
+        printf("token value yes n: %d\n", strcmp(token_command, close));
 
-        if (strcmp(token_command, ask) == 0)    client_message.message_type = 3;
+        if (strncmp(token_command, sub, 3) == 0) client_message.message_type = 2;
 
-        if (strcmp(token_command, list) == 0)   client_message.message_type = 4;
+        if (strncmp(token_command, unsub, 5) == 0) client_message.message_type = 2;
 
-        if (strcmp(token_command, close) == 0) {
+        if (strncmp(token_command, ask, 3) == 0)    client_message.message_type = 3;
+
+        if (strncmp(token_command, list, 4) == 0)   client_message.message_type = 4;
+
+        if (strncmp(token_command, close, 4) == 0) {
             exit (EXIT_SUCCESS);
             break;
             
