@@ -27,6 +27,7 @@ typedef struct message {
 
 typedef struct event {
     char name_event[64];                                //  64 is maximum amount of chars for a name_event
+    int interested;
     int *attendents;
     int max_capacity;
 }event;
@@ -48,8 +49,9 @@ void *client_first_connection (void *parg) {
             perror ("msgrcv");
             exit (EXIT_FAILURE);
         }
-        /*  Preparing response  */
         printf ("server: %s\n", message_client.message_text.buf);
+
+        /*  Preparing response  */
         int client_qid = message_client.message_text.qid;
         message_server.message_text.qid = qid;
         message_server.message_type = 1;
@@ -70,10 +72,14 @@ void *client_first_connection (void *parg) {
     }
 }
 
-void *client_listener_sub (void *parg) {
+void *client_listener_sub_unsub (void *parg) {
 
     message message_client;
-    //message message_server;
+    //message_server;
+    char *token;
+    char sep[2] = " ";
+    char sub[4] = "sub";
+    char unsub[6] = "unsub";
 
     while (1) {
         if (msgrcv (qid, &message_client, sizeof (message), 2, 0) == -1) {
@@ -83,13 +89,52 @@ void *client_listener_sub (void *parg) {
 
         int client_qid = message_client.message_text.qid;
 
-        printf ("server: message received from client %d.\n", client_qid);
+        //printf ("server: message received from client %d.\n", client_qid);
 
         // process message
-        int length = strlen (message_client.message_text.buf);
-        char buf [20];
-        sprintf (buf, " %d", length);
-        strcat (message_client.message_text.buf, buf);
+        token = strtok(message_client.message_text.buf, sep);
+        if (strcmp (token, sub) == 0) {
+            token = strtok(NULL, sep);
+            for (int i = 0; i < number_events; i++) {
+                if (strcmp (events[i].name_event, token) == 0) {
+                    events[i].interested ++;
+                    events[i].attendents[events[i].interested] = client_qid;
+                    for (int j = 0; j < events[i].interested; j++) {
+                        printf("clients %d\n", events[i].attendents[j]);
+                    }
+                }
+            }
+            
+        }
+
+        else if (strcmp (token, unsub) == 0) {
+            token = strtok(NULL, sep);
+            int pos = -1;
+            for (int i = 0; i < number_events; i++) {
+                if (strcmp (events[i].name_event, token) == 0) {
+                    for (int j = 0; j < events[i].interested; j++) {
+                        if (events[i].attendents[j] == client_qid) {
+                            pos = j;
+                        }
+                        else {
+                            //  Implment event not found
+                        }
+                    }
+
+                    if (pos == -1) {
+                        //  Implement client not found
+                    }
+
+                    for (int j = pos; j < events[i].interested; j++) {
+                        events[i].attendents[j] = events[i].attendents[j + 1];
+                    }
+                    events[i].interested --;
+                }
+            }
+
+        } else {
+            // Implement something
+        }
 
         message_client.message_text.qid = qid;
         //printf("El 1\n");
@@ -118,7 +163,6 @@ int main (int argc, char **argv) {
     pthread_t threadID_client_listener_sub;
     //pthread_t threadID_client_listener_ask;
     //pthread_t threadID_client_listener_list;
-    //pthread_t threadID_client_listener_unsub;
 
     /*  Creation of unique key  */
     if ((msg_queue_key = ftok (SERVER_KEY_PATHNAME, PROJECT_ID)) == -1) {
@@ -132,10 +176,9 @@ int main (int argc, char **argv) {
     }
     /*  Creation of threads incharge of listing thru various channels   */
     pthread_create (&threadID_connection, NULL, client_first_connection, NULL);
-    pthread_create (&threadID_client_listener_sub, NULL, client_listener_sub, NULL);
+    pthread_create (&threadID_client_listener_sub, NULL, client_listener_sub_unsub, NULL);
     //pthread_create(&threadID_client_listener_ask, NULL, client_listener_ask, &register_clients);
     //pthread_create(&threadID_client_listener_list, NULL, client_listener_list, &register_clients);
-    //pthread_create(&threadID_client_listener_unsub, NULL, client_listener_unsub, &register_clients);
 
     /*  Init Events */
     number_events = 0;
@@ -148,6 +191,7 @@ int main (int argc, char **argv) {
     char add[4]     = "add";
     char close[5]   = "exit";
     char remove[7]  = "remove";
+    char trigger[8] = "trigger";
     char terminal_input[SIZE_COMMAND];
 
     while (fgets (terminal_input, SIZE_COMMAND, stdin)) {
@@ -161,27 +205,63 @@ int main (int argc, char **argv) {
         /*  Implement some kind of control if an event was deleted and someone ask for it?  */
         if (strcmp (token, add) == 0) {
             token = strtok(NULL, sep);
-            events[number_events].max_capacity = 2;
+            events[number_events].interested = 0;
+            events[number_events].max_capacity = 64;                //  Default 64. If necessary, do more strtok for value. Example command: add event_name max_capacity
             events[number_events].attendents = malloc(sizeof(int) * events[number_events].max_capacity);
             strcpy(events[number_events].name_event, token);
             number_events ++;
+
+            /*for (int i = 0; i < number_events; i++) {
+                printf("Name: %s\n", events[i].name_event);
+                for (int j = 0; j < events[i].interested; j++)
+                {
+                    printf("Clients: %d\n", events[i].attendents[j]);
+                }
+                
+            }
+            printf("--------\n");*/
         }
 
-        /*  Remove command  */
-        /*  In progress */
+        /*  Remove Command  */
         if (strcmp (token, remove) == 0) {
+            int pos = 0;
             token = strtok (NULL, sep);
-            for (int i = number_events - 1; i >= 0; i--) {
-                if (strcmp (token, events[i].name_event)) {
+            for (int i = 0; i < number_events; i++) {
+                if (strcmp (token, events[i].name_event) == 0) {
                     free(events[i].attendents);
+                    pos = i;
                     break;
                 }
-                events[i - 1] = events[i];
-                
+            }
+            for (int i = pos; i < number_events; i++) {
+                events[i] = events[i + 1];
+                if (i == number_events - 1) {
+                    free (events[i].attendents);
+                }
+            }
+            number_events --;
+        }
+
+        /*  Trigger Command */
+        if (strcmp (token, trigger) == 0) {
+            token = strtok (NULL, sep);
+            for (int i = 0; i < number_events; i++) {
+                if (strcmp (token, events[i].name_event) == 0) {
+                    for (int j = 0; j < events[i].interested; j++) {
+                        server_message.message_type = 7;
+                        server_message.message_text.qid = qid;
+                        //char auxBuf_name[64] = events[i].name_event;
+                        sprintf(server_message.message_text.buf, "%s", events[i].name_event);
+                        if (msgsnd (events[i].attendents[j], &server_message, sizeof (message), 0) == -1) {
+                            perror ("msgget");
+                        }
+                    }
+                    break;
+                }
             }
         }
 
-        /*  Exit command    */
+        /*  Exit Command    */
         if (strcmp (token, close) == 0) {
             printf ("server: closing\n");
             server_message.message_type = 6;
@@ -192,7 +272,7 @@ int main (int argc, char **argv) {
                 free(events);
                 if (msgsnd (register_clientes[i], &server_message, sizeof (message), 0) == -1) {  
                     perror ("msgget");
-                    exit (1);
+                    exit (EXIT_FAILURE);
                 }
             }
             /*  Closing queue   */
@@ -202,6 +282,7 @@ int main (int argc, char **argv) {
             }
         }
     }
+
     /*  While fails for some reason */
     for (int i = 0; i < number_events; i++) { free(events[i].attendents); }
     free(events);

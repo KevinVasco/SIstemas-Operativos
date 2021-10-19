@@ -26,8 +26,8 @@ key_t server_queue_key;
 int server_qid, my_qid;
 
 void *server_listener_closing (void *pargs) {
+
     message server_message;
-    // Se if it's necessary while
     if (msgrcv (my_qid, &server_message, sizeof (message), 6, 0) == -1) {
         perror ("client: msgrcv\n");
         printf ("client: server tried to close\n");
@@ -39,8 +39,21 @@ void *server_listener_closing (void *pargs) {
     exit (EXIT_SUCCESS);
 }
 
+void *server_listener_triggers (void *pargs) {
+
+    message server_message;
+    while (1) {
+        if (msgrcv (my_qid, &server_message, sizeof (message), 7, 0) == -1) {
+        perror ("client: msgrcv\n");
+        exit (EXIT_FAILURE);
+        }
+        printf("server: %s", server_message.message_text.buf);
+        printf(" is now online\n");
+    }
+}
+
 int main (int argc, char **argv) {
-    /*  Communicaction shit */
+
     message client_message, server_message;
 
     // create my client queue for receiving messages from server
@@ -58,7 +71,6 @@ int main (int argc, char **argv) {
         perror ("msgget: server_qid");
         exit (EXIT_FAILURE);
     }
-    /*  End of communication shit   */
 
     //char no[2]              = "n"; // Later view how to implement this
     //char yes[2]             = "y";
