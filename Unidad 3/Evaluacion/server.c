@@ -28,7 +28,7 @@ typedef struct message {
 typedef struct event {
     char name_event[64];                                //  64 is maximum amount of chars for a name_event
     int interested;
-    int *attendents;
+    int *attendents;                                 //  64 maximum amount of attendents. It could be more but heap is a bitch
     int max_capacity;
 }event;
 
@@ -74,8 +74,7 @@ void *client_first_connection (void *parg) {
 
 void *client_listener_sub_unsub (void *parg) {
 
-    message message_client;
-    //message_server;
+    message message_client, message_server;
     char *token;
     char sep[2] = " ";
     char sub[4] = "sub";
@@ -95,52 +94,49 @@ void *client_listener_sub_unsub (void *parg) {
         token = strtok(message_client.message_text.buf, sep);
         if (strcmp (token, sub) == 0) {
             token = strtok(NULL, sep);
-            for (int i = 0; i < number_events; i++) {
-                if (strcmp (events[i].name_event, token) == 0) {
-                    events[i].interested ++;
+            printf("token 2: %s\n", token);
+            if (number_events == 0) sprintf(message_server.message_text.buf, "%s", "event not found");
+            for (int i = 0; i < number_events; i++) {;
+                if (strcmp (token, events[i].name_event) == 0) {
                     events[i].attendents[events[i].interested] = client_qid;
-                    for (int j = 0; j < events[i].interested; j++) {
-                        printf("clients %d\n", events[i].attendents[j]);
-                    }
+                    events[i].interested ++;
+                    sprintf(message_server.message_text.buf, "%s", "you are now subbed");
+                }
+                else {
+                    sprintf(message_server.message_text.buf, "%s", "event not found");
                 }
             }
-            
         }
 
         else if (strcmp (token, unsub) == 0) {
+            printf("strcmp unsub\n");
             token = strtok(NULL, sep);
+            printf("token: %s\n", token);
             int pos = -1;
             for (int i = 0; i < number_events; i++) {
-                if (strcmp (events[i].name_event, token) == 0) {
-                    for (int j = 0; j < events[i].interested; j++) {
-                        if (events[i].attendents[j] == client_qid) {
-                            pos = j;
-                        }
-                        else {
-                            //  Implment event not found
-                        }
-                    }
-
-                    if (pos == -1) {
-                        //  Implement client not found
-                    }
-
-                    for (int j = pos; j < events[i].interested; j++) {
-                        events[i].attendents[j] = events[i].attendents[j + 1];
-                    }
-                    events[i].interested --;
+                printf("strcmp unsub event: %d\n", strcmp (token, events[i].name_event));
+                if (strcmp (token, events[i].name_event) == 0) {
+                    pos = i;
+                } else {
+                    sprintf(message_server.message_text.buf, "%s", "event not found");
                 }
+                for (int j = pos; j < events[i].interested; j++) {
+                    events[i].attendents[j] = events[i].attendents[j + 1];
+                    printf("pipol: %d\n", events[i].attendents[j]);
+                }
+                events[i].interested --;
             }
 
         } else {
             // Implement something
         }
 
-        message_client.message_text.qid = qid;
+        message_server.message_text.qid = qid;
+        message_server.message_type = 1;
         //printf("El 1\n");
 
         // send reply message to client
-        if (msgsnd (client_qid, &message_client, sizeof (message), 0) == -1) {  
+        if (msgsnd (client_qid, &message_server, sizeof (message), 0) == -1) {  
             perror ("msgget");
             exit (1);
         }
@@ -199,7 +195,7 @@ int main (int argc, char **argv) {
         int length = strlen (terminal_input);
         if (terminal_input [length - 1] == '\n') terminal_input [length - 1] = '\0';
         /*  Tokenization of entry   */
-        token = strtok(terminal_input, sep);
+        token = strtok (terminal_input, sep);
 
         /*  Add command */
         /*  Implement some kind of control if an event was deleted and someone ask for it?  */
@@ -207,19 +203,16 @@ int main (int argc, char **argv) {
             token = strtok(NULL, sep);
             events[number_events].interested = 0;
             events[number_events].max_capacity = 64;                //  Default 64. If necessary, do more strtok for value. Example command: add event_name max_capacity
-            events[number_events].attendents = malloc(sizeof(int) * events[number_events].max_capacity);
-            strcpy(events[number_events].name_event, token);
+            events[number_events].attendents = malloc (sizeof(int) * events[number_events].max_capacity);
+            strcpy (events[number_events].name_event, token);
             number_events ++;
 
-            /*for (int i = 0; i < number_events; i++) {
-                printf("Name: %s\n", events[i].name_event);
-                for (int j = 0; j < events[i].interested; j++)
-                {
-                    printf("Clients: %d\n", events[i].attendents[j]);
+            for (int i = 0; i < number_events; i++) {
+                for (int j = 0; j < events[i].interested; j++) {
+                    printf("name: %s; client: %d\n", events[i].name_event, events[i].attendents[j]);
                 }
-                
             }
-            printf("--------\n");*/
+            printf("--------\n");
         }
 
         /*  Remove Command  */
@@ -248,7 +241,7 @@ int main (int argc, char **argv) {
             for (int i = 0; i < number_events; i++) {
                 if (strcmp (token, events[i].name_event) == 0) {
                     for (int j = 0; j < events[i].interested; j++) {
-                        server_message.message_type = 7;
+                        server_message.message_type = 3;
                         server_message.message_text.qid = qid;
                         //char auxBuf_name[64] = events[i].name_event;
                         sprintf(server_message.message_text.buf, "%s", events[i].name_event);
@@ -264,7 +257,7 @@ int main (int argc, char **argv) {
         /*  Exit Command    */
         if (strcmp (token, close) == 0) {
             printf ("server: closing\n");
-            server_message.message_type = 6;
+            server_message.message_type = 2;
             server_message.message_text.qid = qid;
             for (int i = 0; i < number_clients; i++) {
                 sprintf(server_message.message_text.buf, "closing server");

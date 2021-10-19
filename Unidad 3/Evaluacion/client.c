@@ -1,11 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
-
 #include <pthread.h>
 
 #define SERVER_KEY_PATHNAME "./server_key_path.txt"
@@ -28,7 +26,7 @@ int server_qid, my_qid;
 void *server_listener_closing (void *pargs) {
 
     message server_message;
-    if (msgrcv (my_qid, &server_message, sizeof (message), 6, 0) == -1) {
+    if (msgrcv (my_qid, &server_message, sizeof (message), 2, 0) == -1) {
         perror ("client: msgrcv\n");
         printf ("client: server tried to close\n");
         printf ("client: closing client\n");
@@ -43,7 +41,7 @@ void *server_listener_triggers (void *pargs) {
 
     message server_message;
     while (1) {
-        if (msgrcv (my_qid, &server_message, sizeof (message), 7, 0) == -1) {
+        if (msgrcv (my_qid, &server_message, sizeof (message), 3, 0) == -1) {
         perror ("client: msgrcv\n");
         exit (EXIT_FAILURE);
         }
@@ -82,7 +80,6 @@ int main (int argc, char **argv) {
     char unsub[6]           = "unsub";
     char access_denied[7]   = "denied";
     char *token_command;
-    //char *token_confirmation; Unused
 
     client_message.message_type = 1;
     client_message.message_text.qid = my_qid;
@@ -130,13 +127,14 @@ int main (int argc, char **argv) {
         token_command  = strtok (client_message.message_text.buf, sep);
 
         // Condicion de carrera
-        if (strcmp(token_command, sub) == 0 || strcmp(token_command, unsub))  client_message.message_type = 2;
+        if (strcmp(token_command, sub) == 0 || strcmp(token_command, unsub) == 0)  client_message.message_type = 2;
 
-        else if (strcmp(token_command, ask) == 0)    client_message.message_type = 3;
+        if (strcmp(token_command, ask) == 0)    client_message.message_type = 3;
 
-        else if (strcmp(token_command, list) == 0)   client_message.message_type = 4;
+        if (strcmp(token_command, list) == 0)   client_message.message_type = 4;
 
-        else if (strcmp(token_command, close) == 0) {
+        if (strcmp(token_command, close) == 0) {
+            exit (EXIT_SUCCESS);
             break;
             
             /*printf ("server: are you sure? type (y) or (n): ");
@@ -153,6 +151,7 @@ int main (int argc, char **argv) {
 
         else {
             printf("server: invalid command\n");
+            printf ("client: please type in a command: ");
             continue;
         }
         /*  End of my shit    */
@@ -162,12 +161,12 @@ int main (int argc, char **argv) {
             exit (EXIT_FAILURE);
         }
 
-        if (msgrcv (my_qid, &server_message, sizeof (message), 0, 0) == -1) {
+        if (msgrcv (my_qid, &server_message, sizeof (message), 1, 0) == -1) {
             perror ("client: msgrcv");
             exit (EXIT_FAILURE);
         }
 
-        printf ("Message received from server: %s\n\n", server_message.message_text.buf);  
+        printf ("server: %s\n\n", server_message.message_text.buf);  
 
         printf ("client: please type a command: ");
     }
