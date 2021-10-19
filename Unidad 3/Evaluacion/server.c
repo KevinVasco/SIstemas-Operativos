@@ -184,11 +184,12 @@ int main (int argc, char **argv) {
     printf ("Server: Hello, World!\n");
 
     char *token;
-    char sep[2]     = " ";
-    char add[4]     = "add";
-    char close[5]   = "exit";
-    char remove[7]  = "remove";
-    char trigger[8] = "trigger";
+    char *sep     = " ";
+    char *add     = "add";
+    char *list    = "list";
+    char *close   = "exit";
+    char *remove  = "remove";
+    char *trigger = "trigger";
     char terminal_input[SIZE_COMMAND];
 
     while (fgets (terminal_input, SIZE_COMMAND, stdin)) {
@@ -216,6 +217,7 @@ int main (int argc, char **argv) {
         }
 
         /*  Remove Command  */
+        //  Add notify clients when remove
         if (strcmp (token, remove) == 0) {
             int pos = 0;
             token = strtok (NULL, sep);
@@ -240,10 +242,9 @@ int main (int argc, char **argv) {
             token = strtok (NULL, sep);
             for (int i = 0; i < number_events; i++) {
                 if (strcmp (token, events[i].name_event) == 0) {
+                    server_message.message_type = 3;
+                    server_message.message_text.qid = qid;
                     for (int j = 0; j < events[i].interested; j++) {
-                        server_message.message_type = 3;
-                        server_message.message_text.qid = qid;
-                        //char auxBuf_name[64] = events[i].name_event;
                         sprintf(server_message.message_text.buf, "%s", events[i].name_event);
                         if (msgsnd (events[i].attendents[j], &server_message, sizeof (message), 0) == -1) {
                             perror ("msgget");
@@ -252,6 +253,21 @@ int main (int argc, char **argv) {
                     break;
                 }
             }
+        }
+
+        /*  List clients subscribed to event_name   */
+        if (strcmp (token, list) == 0) {
+            printf("server: if no clients are shown, the event does not exist or it has no subscribers\n");
+            token = strtok( NULL, sep);
+            for (int i = 0; i < number_events; i++) {
+                if (strcmp (token, events[i].name_event) == 0) {
+                    for (int j = 0; j < events[i].interested; j++) {
+                        printf("server: %s: %d\n", events[i].name_event, events[i].attendents[j]);
+                    }
+                break;
+                }
+            }
+            printf("server: end of list\n");
         }
 
         /*  Exit Command    */

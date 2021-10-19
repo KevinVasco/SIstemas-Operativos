@@ -72,13 +72,13 @@ int main (int argc, char **argv) {
 
     //char no[2]              = "n"; // Later view how to implement this
     //char yes[2]             = "y";
-    char sep[2]             = " ";
-    char sub[4]             = "sub";
-    char ask[4]             = "ask";
-    char list[5]            = "list";
-    char unsub[6]           = "unsub";
-    char cerrar[6]          = "exit";
-    char access_denied[7]   = "denied";
+    char *sep             = " ";
+    char *sub             = "sub";
+    char *ask             = "ask";
+    char *list            = "list";
+    char *cerrar          = "exit";
+    char *unsub           = "unsub";
+    char *access_denied   = "denied";
     char *token_command;
 
     client_message.message_type = 1;
@@ -126,23 +126,18 @@ int main (int argc, char **argv) {
         /*  Tokenization of entry   */
         token_command  = strtok (client_message.message_text.buf, sep);
 
-        // Condicion de carrera
-        printf("token: %s\n", token_command);
-        for (int i = 0; i < strlen(token_command); i++) printf("%d ", token_command[i]);
-        printf("\n");
-        for (int i = 0; i < strlen(cerrar); i++) printf("%d ", cerrar[i]);
-        //printf("token value no n: %d\n", strncmp(token_command, cerrar, 4));
-        //printf("token value yes n: %d\n", strcmp(token_command, cerrar));
+        // Condicion de carrera?
+        
+        printf("%d\n", strcmp (token_command, sub));
+        if (strcmp (token_command, sub) == 0) client_message.message_type = 2;
 
-        if (strncmp(token_command, sub, 3) == 0) client_message.message_type = 2;
+        else if (strcmp (token_command, unsub) == 0) client_message.message_type = 2;
 
-        if (strncmp(token_command, unsub, 5) == 0) client_message.message_type = 2;
+        else if (strcmp (token_command, ask) == 0)    client_message.message_type = 3;
 
-        if (strncmp(token_command, ask, 3) == 0)    client_message.message_type = 3;
+        else if (strcmp (token_command, list) == 0)   client_message.message_type = 4;
 
-        if (strncmp(token_command, list, 4) == 0)   client_message.message_type = 4;
-
-        if (strncmp(token_command, cerrar, 4) == 0) {
+        else if (strcmp (token_command, cerrar) == 0) {
             exit (EXIT_SUCCESS);
             break;
             
