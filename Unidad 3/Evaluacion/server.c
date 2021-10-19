@@ -198,7 +198,6 @@ int main (int argc, char **argv) {
         token = strtok (terminal_input, sep);
 
         /*  Add command */
-        /*  Implement some kind of control if an event was deleted and someone ask for it?  */
         if (strcmp (token, add) == 0) {
             token = strtok(NULL, sep);
             events[number_events].interested = 0;
@@ -259,15 +258,15 @@ int main (int argc, char **argv) {
             printf ("server: closing\n");
             server_message.message_type = 2;
             server_message.message_text.qid = qid;
+            for (int i = 0; i < number_events; i++) { free(events[i].attendents); }
             for (int i = 0; i < number_clients; i++) {
                 sprintf(server_message.message_text.buf, "closing server");
-                for (int i = 0; i < number_events; i++) { free(events[i].attendents); }
-                free(events);
                 if (msgsnd (register_clientes[i], &server_message, sizeof (message), 0) == -1) {  
                     perror ("msgget");
                     exit (EXIT_FAILURE);
                 }
             }
+            free(events);
             /*  Closing queue   */
             if (msgctl (qid, IPC_RMID, NULL) == -1) {
                 perror ("server: msgctl");
