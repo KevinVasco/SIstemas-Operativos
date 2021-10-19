@@ -1,11 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
-
 #include <pthread.h>
 
 #define SERVER_KEY_PATHNAME "./server_key_path.txt"
@@ -14,6 +12,7 @@
 #define SIZE_COMMAND 256                                //  Maximum amount chars for command
 #define SIZE_REGISTERS 128                              //  Maximum amount of clients able to conenct to the server at any given point
 #define SIZE_TOTAL_EVENTS 128                           //  Maximum amount of events
+#define SIZE_EVENTS_NAME 64                             //  Maximum amount of chars for a name_event
 
 typedef struct message_text {
     int qid;
@@ -26,7 +25,7 @@ typedef struct message {
 }message;
 
 typedef struct event {
-    char name_event[64];                                //  64 is maximum amount of chars for a name_event
+    char name_event[SIZE_EVENTS_NAME];
     int interested;
     int *attendents;
     int max_capacity;
@@ -40,8 +39,8 @@ int number_clients;
 int register_clientes[SIZE_REGISTERS];
 
 void *client_first_connection (void *parg) {
-
     message message_client, message_server;
+    /*  Init register clients   */
     number_clients = 0;
     while (1) {
         /*  Read incoming message thru channel 1    */
@@ -73,13 +72,12 @@ void *client_first_connection (void *parg) {
 }
 
 void *client_listener_sub_unsub (void *parg) {
-
     message message_client, message_server;
     char *token;
     char *sep = " ";
     char *sub = "sub";
     char *unsub = "unsub";
-
+    /*  Read incoming message thru channel 2    */
     while (1) {
         if (msgrcv (qid, &message_client, sizeof (message), 2, 0) == -1) {
             perror ("msgrcv");
@@ -87,51 +85,55 @@ void *client_listener_sub_unsub (void *parg) {
         }
         int client_qid = message_client.message_text.qid;
 
-        // process message
+        /*  Preparing response  */
         token = strtok(message_client.message_text.buf, sep);
+        /*  Sub command */
         if (strcmp (token, sub) == 0) {
             token = strtok(NULL, sep);
+            /*  No events for subscription   */
             if (number_events == 0) sprintf(message_server.message_text.buf, "%s", "event not found");
             for (int i = 0; i < number_events; i++) {
                 if (strcmp (token, events[i].name_event) == 0) {
+                    /*  Event is full   */
                     if (events[i].interested == events[i].max_capacity) {
                         sprintf(message_server.message_text.buf, "%s", "event is full");
                         break;
                     }
+                    /*  Event not full  */
                     events[i].attendents[events[i].interested] = client_qid;
                     events[i].interested ++;
                     sprintf(message_server.message_text.buf, "%s", "you are now subbed");
-                }
-                else {
+                /* Event doen't exist   */
+                } else {
                     sprintf(message_server.message_text.buf, "%s", "event not found");
                 }
             }
         }
-
+        /*  Unsub command   */
         else if (strcmp (token, unsub) == 0) {
             token = strtok(NULL, sep);
             int pos = -1;
             for (int i = 0; i < number_events; i++) {
+                /*  Finding position of event_name in events array  */
                 if (strcmp (token, events[i].name_event) == 0) {
                     pos = i;
                 } else {
+                    /*  Event doesn't exist */
                     sprintf(message_server.message_text.buf, "%s", "event not found");
                 }
                 for (int j = pos; j < events[i].interested; j++) {
+                    /*  Found event and client as attendent is eliminated   */
                     events[i].attendents[j] = events[i].attendents[j + 1];
                     sprintf(message_server.message_text.buf, "%s", "you are now unsubbed");
                 }
                 events[i].interested --;
             }
-
-        } else {
-            // Implement something
         }
 
         message_server.message_text.qid = qid;
         message_server.message_type = 1;
 
-        /*  send reply message to client    */
+        /*  Send reply message to client    */
         if (msgsnd (client_qid, &message_server, sizeof (message), 0) == -1) {  
             perror ("msgget");
             exit (1);
@@ -143,6 +145,7 @@ void *client_listener_sub_unsub (void *parg) {
 
 void *client_listener_ask (void *pargs) {
     message message_client, message_server;
+    /*  Read incoming message thru channel 3    */
     while(1) {
         if (msgrcv (qid, &message_client, sizeof (message), 3, 0) == -1) {
             perror ("msgrcv");
@@ -150,21 +153,20 @@ void *client_listener_ask (void *pargs) {
         }
         int client_qid = message_client.message_text.qid;
 
-
+        message_server.message_type = 5;
         for (int i = 0; i < number_events; i++) {
             if (events[i].interested < events[i].max_capacity) {
-                //  wtf do i do
+                sprintf(message_server.message_text.buf, "%s", events[i].name_event);
+                if (msgsnd (client_qid, &message_server, sizeof (message), 0) == -1) {  
+                perror ("msgget");
+                exit (1);
             }
-        }
-        if (msgsnd (client_qid, &message_server, sizeof (message), 0) == -1) {  
-            perror ("msgget");
-            exit (1);
+            }
         }
     }
 }
 
 int main (int argc, char **argv) {
-
     message server_message;
     /*  Creation of a file for communication of server key if it doesn't exist  */
     FILE *server_key_path_create = fopen(SERVER_KEY_PATHNAME,"w+");
@@ -174,8 +176,8 @@ int main (int argc, char **argv) {
     }
 
     pthread_t threadID_connection;
-    pthread_t threadID_client_listener_sub;
-    //pthread_t threadID_client_listener_ask;
+    pthread_t threadID_client_listener_ask;
+    pthread_t threadID_client_listener_sub_unsub;
     //pthread_t threadID_client_listener_list;
 
     /*  Creation of unique key  */
@@ -190,8 +192,8 @@ int main (int argc, char **argv) {
     }
     /*  Creation of threads incharge of listing thru various channels   */
     pthread_create (&threadID_connection, NULL, client_first_connection, NULL);
-    pthread_create (&threadID_client_listener_sub, NULL, client_listener_sub_unsub, NULL);
-    //pthread_create(&threadID_client_listener_ask, NULL, client_listener_ask, &register_clients);
+    pthread_create (&threadID_client_listener_sub_unsub, NULL, client_listener_sub_unsub, NULL);
+    pthread_create (&threadID_client_listener_ask, NULL, client_listener_ask, NULL);
     //pthread_create(&threadID_client_listener_list, NULL, client_listener_list, &register_clients);
 
     /*  Init Events */

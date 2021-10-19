@@ -24,7 +24,6 @@ key_t server_queue_key;
 int server_qid, my_qid;
 
 void *server_listener_closing (void *pargs) {
-
     message server_message;
     if (msgrcv (my_qid, &server_message, sizeof (message), 2, 0) == -1) {
         perror ("client: msgrcv\n");
@@ -35,6 +34,18 @@ void *server_listener_closing (void *pargs) {
     printf ("server: closing\n");
     printf ("client: closing\n");
     exit (EXIT_SUCCESS);
+}
+
+void *server_listener_triggers (void *pargs) {
+    message server_message;
+    while (1) {
+        if (msgrcv (my_qid, &server_message, sizeof (message), 3, 0) == -1) {
+        perror ("client: msgrcv\n");
+        exit (EXIT_FAILURE);
+        }
+        printf("server: %s", server_message.message_text.buf);
+        printf(" is now online\n");
+    }
 }
 
 void *server_listener_remove_event (void *pargs) {
@@ -49,11 +60,10 @@ void *server_listener_remove_event (void *pargs) {
     }
 }
 
-void *server_listener_triggers (void *pargs) {
-
+void *server_listener_ask (void *pargs) {
     message server_message;
     while (1) {
-        if (msgrcv (my_qid, &server_message, sizeof (message), 3, 0) == -1) {
+        if (msgrcv (my_qid, &server_message, sizeof (message), 5, 0) == -1) {
         perror ("client: msgrcv\n");
         exit (EXIT_FAILURE);
         }
@@ -80,9 +90,7 @@ int main (int argc, char **argv) {
         perror ("msgget: server_qid");
         exit (EXIT_FAILURE);
     }
-
-    //char no[2]              = "n"; // Later view how to implement this
-    //char yes[2]             = "y";
+    
     char *sep             = " ";
     char *sub             = "sub";
     char *ask             = "ask";
@@ -130,8 +138,6 @@ int main (int argc, char **argv) {
     pthread_create (&threadID_server_trigger, NULL, server_listener_triggers, NULL);
     pthread_create (&threadID_server_remove_event, NULL, server_listener_remove_event, NULL);
 
-    printf ("client: ");
-
     while (fgets (client_message.message_text.buf, SIZE_COMMAND, stdin)) {
         /*  Formating console entry */
         int length = strlen (client_message.message_text.buf);
@@ -144,33 +150,21 @@ int main (int argc, char **argv) {
 
         // Condicion de carrera?
         
-        if (strcmp (token_command, sub) == 0) client_message.message_type = 2;
+        if (strcmp (token_command, sub) == 0)           client_message.message_type = 2;
 
-        else if (strcmp (token_command, unsub) == 0) client_message.message_type = 2;
+        else if (strcmp (token_command, unsub) == 0)    client_message.message_type = 2;
 
-        else if (strcmp (token_command, ask) == 0)    client_message.message_type = 3;
+        else if (strcmp (token_command, ask) == 0)      client_message.message_type = 3;
 
-        else if (strcmp (token_command, list) == 0)   client_message.message_type = 4;
+        else if (strcmp (token_command, list) == 0)     client_message.message_type = 4;
 
         else if (strcmp (token_command, cerrar) == 0) {
             exit (EXIT_SUCCESS);
             break;
-            
-            /*printf ("server: are you sure? type (y) or (n): ");
-            fgets (buf, 2, stdin);
-            length = strlen(buf);
-            if (buf[length - 1] == '\n') buf [length - 1] = '\0';
-            if (strcmp(buf, yes) ==  0) break;
-            if (strcmp(buf, no) == 0) continue;
-            else {
-                printf("server: invalid command\n");
-                continue;
-            }*/ //  Segmention Fault
         }
 
         else {
             printf("server: invalid command\n");
-            printf ("client: ");
             continue;
         }
 
@@ -184,9 +178,7 @@ int main (int argc, char **argv) {
             exit (EXIT_FAILURE);
         }
 
-        printf ("server: %s\n\n", server_message.message_text.buf);  
-
-        printf ("client: ");
+        printf ("server: %s\n\n", server_message.message_text.buf);
     }
 
     if (msgctl (my_qid, IPC_RMID, NULL) == -1) {
