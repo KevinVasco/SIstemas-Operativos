@@ -40,8 +40,8 @@ void *server_listener_triggers (void *pargs) {
     message server_message;
     while (1) {
         if (msgrcv (my_qid, &server_message, sizeof (message), 3, 0) == -1) {
-        perror ("client: msgrcv\n");
-        exit (EXIT_FAILURE);
+            perror ("client: msgrcv\n");
+            exit (EXIT_FAILURE);
         }
         printf("server: %s", server_message.message_text.buf);
         printf(" is now online\n");
@@ -52,8 +52,8 @@ void *server_listener_remove_event (void *pargs) {
     message server_message;
     while (1) {
         if (msgrcv (my_qid, &server_message, sizeof (message), 4, 0) == -1) {
-        perror ("client: msgrcv\n");
-        exit (EXIT_FAILURE);
+            perror ("client: msgrcv\n");
+            exit (EXIT_FAILURE);
         }
         printf("server: %s", server_message.message_text.buf);
         printf(" has been removed\n");
@@ -64,16 +64,36 @@ void *server_listener_ask (void *pargs) {
     message server_message;
     while (1) {
         if (msgrcv (my_qid, &server_message, sizeof (message), 5, 0) == -1) {
-        perror ("client: msgrcv\n");
-        exit (EXIT_FAILURE);
+            perror ("client: msgrcv\n");
+            exit (EXIT_FAILURE);
         }
-        printf("server: %s", server_message.message_text.buf);
-        printf(" is now online\n");
+        printf("server: %s\n", server_message.message_text.buf);
+    }
+}
+
+void *server_listener_list (void *pargs) {
+    message server_message;
+    while (1) {
+        if (msgrcv (my_qid, &server_message, sizeof (message), 6, 0) == -1) {
+            perror ("client: msgrcv\n");
+            exit (EXIT_FAILURE);
+        }
+        printf("server: %s\n", server_message.message_text.buf);
+    }
+}
+
+void *server_listener_aux (void *pargs) {
+    message server_message;
+    while (1) {
+        if (msgrcv (my_qid, &server_message, sizeof (message), 1, 0) == -1) {
+            perror ("client: msgrcv\n");
+            exit (EXIT_FAILURE);
+        }
+        printf("server: %s\n", server_message.message_text.buf);
     }
 }
 
 int main (int argc, char **argv) {
-
     message client_message, server_message;
     /*  Create medium for communication */
     if ((my_qid = msgget (IPC_PRIVATE, 0660)) == -1) {
@@ -131,9 +151,15 @@ int main (int argc, char **argv) {
         exit (EXIT_SUCCESS);
     }
 
+    pthread_t threadID_server_ask;
+    pthread_t threadID_server_aux;
+    pthread_t threadID_server_list;
     pthread_t threadID_server_closed;
     pthread_t threadID_server_trigger;
     pthread_t threadID_server_remove_event;
+    pthread_create (&threadID_server_ask, NULL, server_listener_ask, NULL);
+    pthread_create (&threadID_server_aux, NULL, server_listener_aux, NULL);
+    pthread_create (&threadID_server_list, NULL, server_listener_list, NULL);
     pthread_create (&threadID_server_closed, NULL, server_listener_closing, NULL);
     pthread_create (&threadID_server_trigger, NULL, server_listener_triggers, NULL);
     pthread_create (&threadID_server_remove_event, NULL, server_listener_remove_event, NULL);
@@ -172,13 +198,6 @@ int main (int argc, char **argv) {
             perror ("client: msgsnd");
             exit (EXIT_FAILURE);
         }
-
-        if (msgrcv (my_qid, &server_message, sizeof (message), 1, 0) == -1) {
-            perror ("client: msgrcv");
-            exit (EXIT_FAILURE);
-        }
-
-        printf ("server: %s\n\n", server_message.message_text.buf);
     }
 
     if (msgctl (my_qid, IPC_RMID, NULL) == -1) {

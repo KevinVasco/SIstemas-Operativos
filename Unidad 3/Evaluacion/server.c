@@ -89,6 +89,8 @@ void *client_listener_sub_unsub (void *parg) {
         token = strtok(message_client.message_text.buf, sep);
         /*  Sub command */
         if (strcmp (token, sub) == 0) {
+            /*  Default message */
+            sprintf(message_server.message_text.buf, "%s", "event not found");
             token = strtok(NULL, sep);
             /*  No events for subscription   */
             if (number_events == 0) sprintf(message_server.message_text.buf, "%s", "event not found");
@@ -103,9 +105,6 @@ void *client_listener_sub_unsub (void *parg) {
                     events[i].attendents[events[i].interested] = client_qid;
                     events[i].interested ++;
                     sprintf(message_server.message_text.buf, "%s", "you are now subbed");
-                /* Event doen't exist   */
-                } else {
-                    sprintf(message_server.message_text.buf, "%s", "event not found");
                 }
             }
         }
@@ -113,21 +112,27 @@ void *client_listener_sub_unsub (void *parg) {
         else if (strcmp (token, unsub) == 0) {
             token = strtok(NULL, sep);
             int pos = -1;
+            int posEvent = 0;
+            sprintf(message_server.message_text.buf, "%s", "you are not subbed to this event");
             for (int i = 0; i < number_events; i++) {
-                /*  Finding position of event_name in events array  */
                 if (strcmp (token, events[i].name_event) == 0) {
-                    pos = i;
-                } else {
-                    /*  Event doesn't exist */
-                    sprintf(message_server.message_text.buf, "%s", "event not found");
+                    for (int j = 0; j < events[i].interested; j++) {
+                        if (client_qid == events[i].attendents[j]) {
+                            pos = j;
+                            posEvent = i;
+                            break;
+                        }
+                    }
+                    if (pos == 0) {
+                        events[i].attendents[0] = 0;
+                    } else {
+                        for (int j = pos; j < events[i].interested; j++) {
+                            events[i].attendents[j] = events[i].attendents[j + 1];
+                        }
+                    }
                 }
-                for (int j = pos; j < events[i].interested; j++) {
-                    /*  Found event and client as attendent is eliminated   */
-                    events[i].attendents[j] = events[i].attendents[j + 1];
-                    sprintf(message_server.message_text.buf, "%s", "you are now unsubbed");
-                }
-                events[i].interested --;
             }
+            events[posEvent].interested --;
         }
 
         message_server.message_text.qid = qid;
@@ -152,17 +157,46 @@ void *client_listener_ask (void *pargs) {
             exit (EXIT_FAILURE);
         }
         int client_qid = message_client.message_text.qid;
-
+        message_server.message_text.qid = qid;
         message_server.message_type = 5;
         for (int i = 0; i < number_events; i++) {
             if (events[i].interested < events[i].max_capacity) {
                 sprintf(message_server.message_text.buf, "%s", events[i].name_event);
                 if (msgsnd (client_qid, &message_server, sizeof (message), 0) == -1) {  
-                perror ("msgget");
-                exit (1);
-            }
+                    perror ("msgget");
+                    exit (1);
+                }
             }
         }
+        printf ("server: response sent to client %d.\n", client_qid);
+    }
+}
+
+void *client_listener_list (void *pargs) {
+    message message_client, message_server;
+    /*  Read incoming message thru channel 4    */
+    while(1) {
+        if (msgrcv (qid, &message_client, sizeof (message), 4, 0) == -1) {
+            perror ("msgrcv");
+            exit (EXIT_FAILURE);
+        }
+        int client_qid = message_client.message_text.qid;
+        message_server.message_text.qid = qid;
+
+        message_server.message_type = 6;
+        for (int i = 0; i < number_events; i++) {
+            for (int j = 0; j < events[i].interested; j ++) {
+                if (client_qid == events[i].attendents[j]) {
+                    sprintf(message_server.message_text.buf, "%s", events[i].name_event);
+                    if (msgsnd (client_qid, &message_server, sizeof (message), 0) == -1) {  
+                        perror ("msgget");
+                        exit (1);
+                    }
+                    break;
+                }
+            }
+        }
+    printf ("server: response sent to client %d.\n", client_qid);
     }
 }
 
@@ -177,8 +211,8 @@ int main (int argc, char **argv) {
 
     pthread_t threadID_connection;
     pthread_t threadID_client_listener_ask;
+    pthread_t threadID_client_listener_list;
     pthread_t threadID_client_listener_sub_unsub;
-    //pthread_t threadID_client_listener_list;
 
     /*  Creation of unique key  */
     if ((msg_queue_key = ftok (SERVER_KEY_PATHNAME, PROJECT_ID)) == -1) {
@@ -192,9 +226,9 @@ int main (int argc, char **argv) {
     }
     /*  Creation of threads incharge of listing thru various channels   */
     pthread_create (&threadID_connection, NULL, client_first_connection, NULL);
-    pthread_create (&threadID_client_listener_sub_unsub, NULL, client_listener_sub_unsub, NULL);
     pthread_create (&threadID_client_listener_ask, NULL, client_listener_ask, NULL);
-    //pthread_create(&threadID_client_listener_list, NULL, client_listener_list, &register_clients);
+    pthread_create (&threadID_client_listener_list, NULL, client_listener_list, NULL);
+    pthread_create (&threadID_client_listener_sub_unsub, NULL, client_listener_sub_unsub, NULL);
 
     /*  Init Events */
     number_events = 0;
@@ -255,16 +289,15 @@ int main (int argc, char **argv) {
                 }
             }
             number_events --;
+            printf("server: event removed\n");
         }
 
         /*  Trigger Command */
         if (strcmp (token, trigger) == 0) {
-            printf("here 1\n");
             token = strtok (NULL, sep);
             // Verify if token is null -> no event_name passed
             for (int i = 0; i < number_events; i++) {
                 if (strcmp (token, events[i].name_event) == 0) {
-                    printf("here 2\n");
                     server_message.message_type = 3;
                     server_message.message_text.qid = qid;
                     for (int j = 0; j < events[i].interested; j++) {
