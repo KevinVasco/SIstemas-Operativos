@@ -224,6 +224,7 @@ int main (int argc, char **argv) {
         perror ("msgget");
         exit (EXIT_FAILURE);
     }
+
     /*  Creation of threads incharge of listing thru various channels   */
     pthread_create (&threadID_connection, NULL, client_first_connection, NULL);
     pthread_create (&threadID_client_listener_ask, NULL, client_listener_ask, NULL);

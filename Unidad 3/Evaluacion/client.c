@@ -24,11 +24,11 @@ key_t server_queue_key;
 int server_qid, my_qid;
 
 void *server_listener_closing (void *pargs) {
-    message server_message;
+    message server_message; 
     if (msgrcv (my_qid, &server_message, sizeof (message), 2, 0) == -1) {
-        perror ("client: msgrcv\n");
         printf ("client: server tried to close\n");
         printf ("client: closing client\n");
+        perror ("client: msgrcv\n");
         exit (EXIT_FAILURE);
     }
     printf ("server: closing\n");
@@ -157,6 +157,7 @@ int main (int argc, char **argv) {
     pthread_t threadID_server_closed;
     pthread_t threadID_server_trigger;
     pthread_t threadID_server_remove_event;
+
     pthread_create (&threadID_server_ask, NULL, server_listener_ask, NULL);
     pthread_create (&threadID_server_aux, NULL, server_listener_aux, NULL);
     pthread_create (&threadID_server_list, NULL, server_listener_list, NULL);
